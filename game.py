@@ -3,6 +3,9 @@ import pprint
 from enum import Enum
 import random
 
+from timeit import default_timer as timer
+
+
 class Game:
     def __init__(self, width: int, height: int):
         self.width = width - 1
@@ -15,27 +18,32 @@ class Game:
         self.populate()
 
     def boundtest(func):
+        start = timer()
+        print(dir(func))
+        print(func.__globals__)
         def onDecorator(self, x, y, *args, **kwargs):
             assert x in range(game.width) and y in range(game.height)
             return func(self, x, y, *args, **kwargs)
 
+        print(timer() - start)
         return onDecorator
 
     def populate(self):
         for y in range(8):
             for x in range(self.width - 1):
                 self.map[x + y%2, y] = random.randint(1, 6)
-                
-    @boundtest
+    
+    #@boundtest
     def at(self, x: int, y: int) -> int:
         return self.map[x, y]
+    
 
-    @boundtest
+    #@boundtest
     def set(self, x: int, y: int, data):
         self.map[x, y] = data.value
         
     def clear(self):
-        self.map = np.zeros(shape=(self.height, self.width), dtype=int)
+        self.map = np.zeros(shape=(self.width, self.height), dtype=int)
             
     def render(self):
         b = ""

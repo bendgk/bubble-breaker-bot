@@ -1,9 +1,12 @@
 import numpy as np
+from scipy.ndimage.measurements import label
 from enum import Enum
 from colorama import init, Fore, Back, Style
 from collections import namedtuple
 from line_utils import evenr_linedraw
+from line_utils import Point
 import math, random
+
 
 
 case = {
@@ -45,8 +48,6 @@ class RenderMode(Enum):
     HEX = 0
     GRID = 1
     RAW = 2
-
-Point = namedtuple('Point', ['x', 'y'])
     
 class Game:
     def __init__(self, width: int, height: int):
@@ -57,29 +58,53 @@ class Game:
 
         self.bubbles = []
 
+        self.seed = 1337
+        self.rows = 8
+
         #populate map
         self.reset_game()
 
     def boundtest(func):
         def onDecorator(self, x, y, *args, **kwargs):
-            assert x in range(game.width), f"Out of bounds! x: {x} <--, y: {y}"
-            assert y in range(game.height + 1), f"Out of bounds! x: {x}, y: {y} <--"
+            assert x in range(self.width), "Out of bounds! x: " + str(x) + " <--, y: " + str(y)
+            assert y in range(self.height + 1), f"Out of bounds! x: " + str(x) + ", y: " + str(y) +" <--"
             return func(self, x, y, *args, **kwargs)
 
         return onDecorator
 
-    def reset_game(self):
-        random.seed(a=1337)
+    def reset_game(self, seed=None):
+        if seed: self.seed = seed
+        random.seed(self.seed)
+        self.populate(rows=8)
+
+
+    def populate(self, rows):
+        random.seed(self.seed)
+        self.bubbles = []
+
         self.map = np.zeros(shape=(self.width + 1, self.height + 1), dtype=int)
-        
-        for y in range(self.height):
-            for x in range(self.width):
-                if y < 8:
+
+        for y in range(self.height - 1, -1, -1):
+            for x in range(self.width - 1, -1, -1):
+                if y < rows:
                     color = random.randint(1, 6)
                     self.map[x + y%2, y] = color
-                    self.bubbles.append(Point(x + y%2, y))
+                    self.bubbles.append([Point(x + y%2, y), -1 if (x == (self.width - 1) * ((y+1)%2)) else color])
 
             self.map[(self.width - 1) * ((y+1)%2), y] = -1
+
+    def clear_board(self):
+        for y in range(0, self.height, -1):
+            for x in range(0, self.width, -1):
+                if game.at(x, y) == -2:
+                    game.set(x, y, 0)
+
+    def add_row_of_bubbles(self):
+        self.rows += 1
+        t.game.populate(rows=self.rows)
+
+    def shoot(self):
+        return label(self.map)
     
     @boundtest
     def at(self, x: int, y: int) -> int:
@@ -95,6 +120,7 @@ class Game:
         for y in range(self.height):
             if mode is RenderMode.RAW: b = "-----" * self.width + "\n"
             else: b = ""
+
             for x in range(self.width):
                 if mode in [RenderMode.DEFAULT, RenderMode.HEX, RenderMode.GRID] : b += case[self.map[x, y]] + Fore.RESET + Back.RESET
                 else:
@@ -107,54 +133,81 @@ class Game:
 
 class TrainingEnvironment:
     def __init__(self):
+        init()
         self.game = Game(11, 17)
+        self.action_space = []
+        self.observable_space = []
 
-    def get_action_space(self):
-        pass
-    def get_observable_space(self):
-        pass
+    def update_action_space(self):
+        # mess of things for defining wall
+        a = [Point(0, y) for y in range(2, self.game.height)]
+        b = [Point(x, self.game.height - 1) for x in range(self.game.width)]
+        c = [Point(self.game.width - 1, y) for y in range(2, self.game.height)]
+        for i in b: a.append(i)
+        for i in c: a.append(i)
+        points_to_iterate = a
+
+        results = set()
+        
+        for point in points_to_iterate:
+            if point.x == 6 and point.y == 16: continue
+            
+            collided = False
+
+            start = self.game.origin
+            end = point
+
+            dy = (end.y - start.y) * 2
+            dx = (end.x - start.x) * 2
+            
+            while not collided:
+                line = evenr_linedraw(start, end)
+
+                for i in range(1, len(line)):
+                    if self.game.at(line[i].x, line[i].y) > 0:
+                        collided = True
+                        #print("Collided at:", line[i - 1], "val:", self.game.at(line[i].x, line[i].y))
+                        results.add(line[i - 1])
+                        #self.game.render()
+                        break
+
+                    #self.game.set(line[i].x, line[i].y, Color.DEBUG)
+
+                    
+                ##########################################################
+                #                       wall logic                       #
+                ##########################################################
+                start = end
+                dx = -dx
+                end = Point(start.x + int(np.sign(dx)*11), start.y + abs(int(dy/dx*11)))
+
+        action_space = []
+        for result in results:
+            if self.game.at(result.x, result.y) != -1:
+                action_space.append(result)
+
+        #self.game.render()
+        return action_space
+    
+    def update_observable_space(self):
+        return self.game.map
 
 if __name__ == '__main__':
     init()
-    game = Game(11, 17)
+    t = TrainingEnvironment()
+    #t.game.render()
+    t.game.add_row_of_bubbles()
+    t.game.render()
+    print(len(t.update_action_space()))
 
-    game.render()
+    #print(t.game.bubbles)
+    #print(t.game.at(11, 8))
+    #print([i[1] for i in t.game.bubbles[13: 24]])
 
-    results = set()
-    
-    for y in range(2, game.height):
-        collided = False
+    #bubbles = [[i[1] for i in t.game.bubbles[(x*12):(x*12)+12]] for x in range(t.game.rows)]
+    #for row in bubbles:
+        #print(row)
+    #Implement floodfill for popping bubble
 
-        start = game.origin
-        end = Point(0, y)
 
-        dy = (end.y - start.y) * 2
-        dx = (end.x - start.x) * 2
-        
-        while not collided:
-            line = evenr_linedraw(start, end)
 
-            for i in range(1, len(line)):
-                if game.at(line[i].x, line[i].y) > 0:
-                    collided = True
-                    print("Collided at:", line[i - 1])
-                    results.add(line[i - 1])
-                    break
-
-                game.set(line[i].x, line[i].y, Color.DEBUG)
-
-                
-            ##########################################################
-            #                       wall logic                       #
-            ##########################################################
-            start = end
-            dx = -dx
-            end = Point(start.x + int(np.sign(dx)*11), start.y + abs(int(dy/dx*11)))
-
-            game.render()
-            print(start, end)
-            input()
-
-        game.reset_game()
-
-    print(len(results))

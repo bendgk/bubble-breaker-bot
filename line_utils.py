@@ -107,5 +107,3 @@ def evenr_linedraw(a: Point, b: Point):
         results.append(cube_to_evenr(cube_round(cube_lerp(a, b, 1.0/N * i))))
 
     return results
-
-print(evenr_linedraw(Point(6, 0), Point(0, 5)))

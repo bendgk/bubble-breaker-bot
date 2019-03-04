@@ -5,9 +5,10 @@ from colorama import init, Fore, Back, Style
 from collections import namedtuple
 from line_utils import evenr_linedraw
 from line_utils import Point
-import math, random
+from game_utils import Color
+from game_utils import flood_fill
 
-
+import math, random, subprocess
 
 case = {
     -1: Fore.BLACK + Back.RED + "XX",
@@ -33,16 +34,6 @@ case_raw = {
     -2:  Fore.WHITE + Back.RED + "+"
 }
 
-class Color(Enum):
-    RED         = 1
-    ORANGE      = 2
-    GREEN       = 3
-    PURPLE      = 4
-    LIGHT_BLUE  = 5
-    DARK_BLUE   = 6
-    DEBUG       = -2
-
-
 class RenderMode(Enum):
     DEFAULT = 0
     HEX = 0
@@ -64,19 +55,19 @@ class Game:
         #populate map
         self.reset_game()
 
-    def boundtest(func):
-        def onDecorator(self, x, y, *args, **kwargs):
+    def bound_test(func):
+        def on_decorator(self, x, y, *args, **kwargs):
             assert x in range(self.width), "Out of bounds! x: " + str(x) + " <--, y: " + str(y)
             assert y in range(self.height + 1), f"Out of bounds! x: " + str(x) + ", y: " + str(y) +" <--"
             return func(self, x, y, *args, **kwargs)
 
-        return onDecorator
+        return on_decorator
 
     def reset_game(self, seed=None):
-        if seed: self.seed = seed
+        if seed:
+            self.seed = seed
         random.seed(self.seed)
         self.populate(rows=8)
-
 
     def populate(self, rows):
         random.seed(self.seed)
@@ -96,8 +87,8 @@ class Game:
     def clear_board(self):
         for y in range(0, self.height, -1):
             for x in range(0, self.width, -1):
-                if game.at(x, y) == -2:
-                    game.set(x, y, 0)
+                if self.at(x, y) == -2:
+                    self.set(x, y, 0)
 
     def add_row_of_bubbles(self):
         self.rows += 1
@@ -106,12 +97,11 @@ class Game:
     def shoot(self):
         return label(self.map)
     
-    @boundtest
+    @bound_test
     def at(self, x: int, y: int) -> int:
         return self.map[x, self.height - y - 1]
     
-
-    @boundtest
+    @bound_test
     def set(self, x: int, y: int, data):
         self.map[x, self.height - y - 1] = data.value
             
@@ -173,7 +163,6 @@ class TrainingEnvironment:
 
                     #self.game.set(line[i].x, line[i].y, Color.DEBUG)
 
-                    
                 ##########################################################
                 #                       wall logic                       #
                 ##########################################################
@@ -187,15 +176,45 @@ class TrainingEnvironment:
                 action_space.append(result)
 
         #self.game.render()
-        return action_space
+        self.action_space = action_space
     
     def update_observable_space(self):
         return self.game.map
 
+def DEBUG(x, y):
+    subprocess.run(["clear"])
+    t.game.set(x, y, Color.DEBUG)
+    t.game.render()
+
 if __name__ == '__main__':
     init()
     t = TrainingEnvironment()
-    #t.game.render()
+    t.game.render()
+    input()
+    """
+    t.update_action_space()
+    print(t.action_space)
+    for point in t.action_space:
+        DEBUG(point.x, point.y)
+    """
+
+    #Floodfill example on how to find bubbles
+    p = Point(7, 10)
+    color = t.game.at(p.x, p.y)
+
+    found = flood_fill(t.game, p, color)
+    for pos in found:
+        DEBUG(pos.x, pos.y)
+
+    """
+    #[Point(x=7, y=12), Point(x=7, y=11), Point(x=6, y=12), Point(x=7, y=10)]
+    found = flood_fill(t.game, Point(7, 10), 6)
+    for pos in found:
+        print(t.game.at(pos.x, pos.y))
+    """
+
+    """
+
     t.game.add_row_of_bubbles()
     t.game.render()
     print(len(t.update_action_space()))
@@ -209,5 +228,5 @@ if __name__ == '__main__':
         #print(row)
     #Implement floodfill for popping bubble
 
-
+    """
 

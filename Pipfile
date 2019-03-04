@@ -6,9 +6,9 @@ name = "pypi"
 [packages]
 numpy = "*"
 colorama = "*"
+scipy = "*"
 
 [dev-packages]
 
 [requires]
 python_version = "3.7"
-

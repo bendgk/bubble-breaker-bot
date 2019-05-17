@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.ndimage.measurements import label
 from enum import Enum
 from colorama import init, Fore, Back, Style
 from collections import namedtuple
@@ -7,6 +6,7 @@ from line_utils import evenr_linedraw
 from line_utils import Point
 from game_utils import Color
 from game_utils import flood_fill
+from game_utils import get_adjacent
 
 import math, random, subprocess
 
@@ -41,7 +41,9 @@ class RenderMode(Enum):
     RAW = 2
     
 class Game:
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, seed=1337):
+        random.seed(seed)
+
         self.width = width + 1
         self.height = height
         
@@ -49,11 +51,15 @@ class Game:
 
         self.bubbles = []
 
-        self.seed = 1337
+        self.seed = seed
         self.rows = 8
 
         #populate map
         self.reset_game()
+
+        self.bubble = random.randint(1, 6)
+        self.next_bubble = random.randint(1, 6)
+
 
     def bound_test(func):
         def on_decorator(self, x, y, *args, **kwargs):
@@ -63,11 +69,13 @@ class Game:
 
         return on_decorator
 
+
     def reset_game(self, seed=None):
         if seed:
             self.seed = seed
         random.seed(self.seed)
         self.populate(rows=8)
+
 
     def populate(self, rows):
         random.seed(self.seed)
@@ -84,27 +92,29 @@ class Game:
 
             self.map[(self.width - 1) * ((y+1)%2), y] = -1
 
+
     def clear_board(self):
         for y in range(0, self.height, -1):
             for x in range(0, self.width, -1):
                 if self.at(x, y) == -2:
                     self.set(x, y, 0)
 
+
     def add_row_of_bubbles(self):
         self.rows += 1
         t.game.populate(rows=self.rows)
 
-    def shoot(self):
-        return label(self.map)
-    
+   
     @bound_test
     def at(self, x: int, y: int) -> int:
         return self.map[x, self.height - y - 1]
-    
+
+
     @bound_test
     def set(self, x: int, y: int, data):
         self.map[x, self.height - y - 1] = data.value
-            
+
+
     def render(self, mode=RenderMode.DEFAULT):
         out = ""
         for y in range(self.height):
@@ -121,12 +131,33 @@ class Game:
 
         print(out)
 
+
+    def shoot(self, x, y, color):
+        found = []
+
+        p = Point(x, y)
+        if self.at(x, y) == 0 or self.at(x, y) == -2:
+            self.set(x, y, color)
+
+            for pos in get_adjacent(p):
+                bubble = self.at(pos.x, pos.y)
+
+                if bubble == color.value:
+                    found = flood_fill(t.game, p, color.value)
+                    break
+
+        for pos in found:
+            self.set(pos.x, pos.y, Color.EMPTY)
+
+
+
 class TrainingEnvironment:
     def __init__(self):
         init()
         self.game = Game(11, 17)
         self.action_space = []
         self.observable_space = []
+
 
     def update_action_space(self):
         # mess of things for defining wall
@@ -178,13 +209,29 @@ class TrainingEnvironment:
         #self.game.render()
         self.action_space = action_space
     
+
     def update_observable_space(self):
+        self.observable_space = self.game.map
         return self.game.map
 
+
+    def step(self, a):
+        if action not in self.action_space:
+            print("Trying to take action not in action space")
+            exit(-1)
+
+        shoot(a.x, a.y, self.game.bubble)
+
+        self.game.bubble = self.game.next_bubble
+        self.game.next_bubble = random.randint(1, 6)
+
+        self.update_observable_space()
+        self.update_action_space()
+
+
 def DEBUG(x, y):
-    subprocess.run(["clear"])
     t.game.set(x, y, Color.DEBUG)
-    t.game.render()
+
 
 if __name__ == '__main__':
     init()
@@ -198,13 +245,16 @@ if __name__ == '__main__':
         DEBUG(point.x, point.y)
     """
 
-    #Floodfill example on how to find bubbles
-    p = Point(7, 10)
-    color = t.game.at(p.x, p.y)
+    t.game.shoot(6, 8, Color.CYAN)
+    t.game.render()
 
-    found = flood_fill(t.game, p, color)
-    for pos in found:
-        DEBUG(pos.x, pos.y)
+    t.update_action_space()
+
+    for point in t.action_space:
+        DEBUG(point.x, point.y)
+    t.game.render()
+
+
 
     """
     #[Point(x=7, y=12), Point(x=7, y=11), Point(x=6, y=12), Point(x=7, y=10)]

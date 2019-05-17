@@ -1,17 +1,18 @@
 ##################################
-#		   game_utils			 #
+#          game_utils            #
 ##################################
 from enum import Enum
 from line_utils import Point
 from collections import deque
 
 class Color(Enum):
+    EMPTY       = 0
     RED         = 1
     ORANGE      = 2
     GREEN       = 3
     PURPLE      = 4
-    LIGHT_BLUE  = 5
-    DARK_BLUE   = 6
+    CYAN        = 5
+    BLUE        = 6
     DEBUG       = -2
 
 dirs = lambda direction, current: {
@@ -24,26 +25,24 @@ dirs = lambda direction, current: {
 }[direction]
 
 def flood_fill(game, start, color):
-	print(game.at(9, 8))
+    out = set()
+    out.add(start)
 
-	out = set()
-	out.add(start)
+    q = deque()
+    q.append(start)
 
-	q = deque()
-	q.append(start)
+    while q:
+        c = q.pop()
 
-	while q:
-		c = q.pop()
+        for pos in get_adjacent(c):
+            bubble = game.at(pos.x, pos.y)
+            if bubble == color and pos not in out:
+                out.add(pos)
+                q.append(pos)
 
-		for pos in get_adjacent(c):
-			bubble = game.at(pos.x, pos.y)
-			if bubble == color and pos not in out:
-				out.add(pos)
-				q.append(pos)
-
-	return list(out)
+    return list(out)
 
 def get_adjacent(current):
-	return (dirs("UP_RIGHT", current), 	dirs("UP_LEFT", current),
-			dirs("LEFT", current), 		dirs("RIGHT", current),
-			dirs("DOWN_LEFT", current), dirs("DOWN_RIGHT", current))
+    return (dirs("UP_RIGHT", current),  dirs("UP_LEFT", current),
+            dirs("LEFT", current),      dirs("RIGHT", current),
+            dirs("DOWN_LEFT", current), dirs("DOWN_RIGHT", current))
